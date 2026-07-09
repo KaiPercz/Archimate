@@ -4,8 +4,18 @@
  * Prueft: (1) jArchi laeuft, (2) Java-Interop/GraalVM aktiv,
  *         (3) archimate_model.json ist lesbar und valide.
  * Aendert NICHTS am Modell.
+ *
+ * Der JSON-Pfad passt sich automatisch an Windows (C:\\...) oder Linux (\\$HOME/...) an.
+ * Falls ein anderer Pfad gewuenscht ist, einfach JSON_PATH unten ueberschreiben.
  */
-var JSON_PATH = "C:\\Users\\kgpercz\\Projekte\\vmware_inventory\\archimate_model.json";
+var System = Java.type("java.lang.System");
+var Paths = Java.type("java.nio.file.Paths");
+var Files = Java.type("java.nio.file.Files");
+
+var isWindows = System.getProperty("os.name").toLowerCase().indexOf("win") >= 0;
+var JSON_PATH = isWindows
+    ? "C:\\Users\\kgpercz\\Projekte\\vmware_inventory\\archimate_model.json"
+    : Paths.get(System.getProperty("user.home"), "Projekte", "vmware_inventory", "archimate_model.json").toString();
 
 console.show();
 console.clear();
@@ -16,8 +26,6 @@ try {
   console.log("2) Java-Interop (GraalVM): " + (ok ? "OK" : "FEHLT"));
   if (!ok) { console.log("   -> jArchi-Version ohne GraalVM? Bitte aktuelle jArchi fuer Archi 5.x nutzen."); }
 
-  var Files = Java.type("java.nio.file.Files");
-  var Paths = Java.type("java.nio.file.Paths");
   var p = Paths.get(JSON_PATH);
   if (!Files.exists(p)) {
     console.log("3) Datei NICHT gefunden: " + JSON_PATH);
