@@ -1,0 +1,68 @@
+/*
+ * jArchi-Sync: archimate_model.json -> aktuelles Archi-Modell.
+ * Garantiert wiederholbare Aktualisierung OHNE Dubletten:
+ *   - Match ueber die stabile ID (gespeichert als Property "extid")
+ *   - vorhanden  -> aktualisieren (Name/Properties)
+ *   - neu        -> anlegen
+ *   - daten-eigen, aber nicht mehr im Export -> entfernen (Prune)
+ * Manuell in Archi angelegte Elemente (ohne "extid") und alle Views/Layouts
+ * bleiben unangetastet.
+ *
+ * Voraussetzung: Archi mit jArchi-Plugin. Ausfuehren ueber Scripts-Menue,
+ * bei GEOEFFNETEM Zielmodell. Pfad unten ggf. anpassen.
+ */
+var JSON_PATH = "C:\\Users\\kgpercz\\Projekte\\vmware_inventory\\archimate_model.json";
+
+var TYPE = {   // Export-Typ -> jArchi-Typ
+  Node: "node", CommunicationNetwork: "communication-network",
+  TechnologyService: "technology-service", ApplicationComponent: "application-component",
+  BusinessService: "business-service",
+  Association: "association-relationship", Assignment: "assignment-relationship",
+  Realization: "realization-relationship", Serving: "serving-relationship",
+};
+
+// --- JSON via Java-NIO einlesen ---
+var Files = Java.type("java.nio.file.Files");
+var Paths = Java.type("java.nio.file.Paths");
+var raw   = new java.lang.String(Files.readAllBytes(Paths.get(JSON_PATH)), "UTF-8");
+var data  = JSON.parse(raw + "");
+
+// --- Index vorhandener, daten-eigener Objekte (haben "extid") ---
+var existing = {};
+$("*").each(function (o) {
+  var x = o.prop("extid");
+  if (x) existing[x] = o;
+});
+
+var seen = {}, created = 0, updated = 0;
+
+// --- Elemente upserten ---
+data.elements.forEach(function (e) {
+  seen[e.id] = true;
+  var o = existing[e.id];
+  if (!o) { o = model.createElement(TYPE[e.type], e.name); o.prop("extid", e.id); created++; }
+  else { o.name = e.name; updated++; }
+  if (e.props) Object.keys(e.props).forEach(function (k) {
+    if (e.props[k] !== "" && e.props[k] != null) o.prop(k, "" + e.props[k]);
+  });
+});
+
+// --- Beziehungen upserten (Endpunkte ueber extid aufloesen) ---
+function byExtId(id) { return existing[id] || $("*").filter(function (o) { return o.prop("extid") === id; }).first(); }
+data.relations.forEach(function (r) {
+  seen[r.id] = true;
+  if (existing[r.id]) { updated++; return; }
+  var s = byExtId(r.source), t = byExtId(r.target);
+  if (s && t) { var rel = model.createRelationship(TYPE[r.type], r.name || "", s, t); rel.prop("extid", r.id); created++; }
+});
+
+// --- Prune: daten-eigene Objekte, die nicht mehr im Export sind ---
+// Beziehungen (extid "rel-...") zuerst, dann Elemente -> keine Kaskaden-Fehler.
+var pruned = 0;
+var stale = Object.keys(existing).filter(function (x) { return !seen[x]; });
+stale.sort(function (a, b) { return (b.indexOf("rel-") === 0) - (a.indexOf("rel-") === 0); });
+stale.forEach(function (x) {
+  try { existing[x].delete(); pruned++; } catch (e) { /* evtl. schon kaskadiert entfernt */ }
+});
+
+console.log("Sync fertig: " + created + " neu, " + updated + " aktualisiert, " + pruned + " entfernt.");

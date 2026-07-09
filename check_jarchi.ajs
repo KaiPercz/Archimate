@@ -1,0 +1,39 @@
+/*
+ * Voraussetzungs-Check fuer den ArchiMate-Sync.
+ * In Archi ausfuehren (Scripts-Fenster), BEVOR sync_archi.ajs genutzt wird.
+ * Prueft: (1) jArchi laeuft, (2) Java-Interop/GraalVM aktiv,
+ *         (3) archimate_model.json ist lesbar und valide.
+ * Aendert NICHTS am Modell.
+ */
+var JSON_PATH = "C:\\Users\\kgpercz\\Projekte\\vmware_inventory\\archimate_model.json";
+
+console.show();
+console.clear();
+console.log("1) jArchi laeuft: OK");
+
+try {
+  var ok = (typeof Java !== "undefined") && !!Java.type;
+  console.log("2) Java-Interop (GraalVM): " + (ok ? "OK" : "FEHLT"));
+  if (!ok) { console.log("   -> jArchi-Version ohne GraalVM? Bitte aktuelle jArchi fuer Archi 5.x nutzen."); }
+
+  var Files = Java.type("java.nio.file.Files");
+  var Paths = Java.type("java.nio.file.Paths");
+  var p = Paths.get(JSON_PATH);
+  if (!Files.exists(p)) {
+    console.log("3) Datei NICHT gefunden: " + JSON_PATH);
+    console.log("   -> zuerst  python archimate_export.py <db>  ausfuehren.");
+  } else {
+    var raw = new java.lang.String(Files.readAllBytes(p), "UTF-8");
+    var data = JSON.parse(raw + "");
+    console.log("3) JSON gelesen: OK");
+    console.log("   Elemente : " + data.elements.length);
+    console.log("   Beziehungen: " + data.relations.length);
+    // Typen zaehlen
+    var t = {};
+    data.elements.forEach(function (e) { t[e.type] = (t[e.type] || 0) + 1; });
+    Object.keys(t).forEach(function (k) { console.log("     " + k + ": " + t[k]); });
+    console.log("\nAlle Voraussetzungen erfuellt -> sync_archi.ajs kann laufen.");
+  }
+} catch (e) {
+  console.log("FEHLER: " + e);
+}
