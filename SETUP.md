@@ -178,7 +178,34 @@ Austausch-Repo: `https://github.com/KaiPercz/Archimate.git`
 > Die `.gitignore` im Projekt blockiert diese Dateien; falls Daten je versioniert werden
 > müssen, ausschließlich ein **internes/privates** Git verwenden.
 
-**Voraussetzung:** Auf beiden Maschinen GitHub-Zugang (PAT oder SSH-Key) eingerichtet.
+### Einmalige GitHub-Authentifizierung
+
+GitHub akzeptiert **keine Passwörter** mehr für Git-Operationen (nur Token/SSH). Steht in der
+Remote-URL eine E-Mail als Benutzername (`https://name%40mail@github.com/...`), wird zudem der
+Credential-Manager umgangen und ein Passwort-Prompt erzwungen → Login schlägt fehl.
+
+**Windows (getestet, funktioniert)** — im geklonten Verzeichnis:
+```powershell
+# 1) Eingebetteten Benutzernamen aus der URL entfernen
+git remote set-url origin https://github.com/KaiPercz/Archimate.git
+# 2) Git Credential Manager als Helper sicherstellen (GCM ist bei Git for Windows dabei)
+git config --global credential.helper manager
+# 3) Push -> GCM öffnet ein Browserfenster zum GitHub-Login (als Konto KaiPercz anmelden)
+git push
+```
+Nach dem Browser-Login wird das Token im **Windows-Anmeldeinformationsspeicher** hinterlegt;
+weitere Pushes/Pulls laufen ohne Nachfrage.
+
+- **Fallback ohne Browser:** Personal Access Token (Settings → Developer settings →
+  Personal access tokens, *fine-grained*, Repo `Archimate`, *Contents: Read and write*).
+  Beim Push als Benutzername `KaiPercz`, als Passwort den **PAT** (nicht das Konto-Passwort).
+- **Alte, falsche Anmeldung im Cache?** In der Windows-Anmeldeinformationsverwaltung den
+  Eintrag `git:https://github.com` entfernen, dann erneut pushen.
+- **Kubuntu (Build-Maschine):** analog PAT verwenden oder SSH-Key hinterlegen und die
+  SSH-URL nutzen (`git@github.com:KaiPercz/Archimate.git`).
+- **Commit-Adresse:** bei einem persönlichen Repo ggf. repo-lokal die private Adresse setzen,
+  damit keine dienstliche E-Mail in die öffentliche Historie gelangt:
+  `git config user.email "kaipercz@gmx.de"`.
 
 **Auf Kubuntu (Build-Maschine)** — Artefakt einchecken:
 ```bash
