@@ -21,3 +21,5 @@ ip_enrichment.csv
 # Build-/Tempdateien
 __pycache__/
 *.pyc
+
+jarchi-build/

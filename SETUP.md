@@ -62,7 +62,7 @@ Wenn später auf 5.9.0 aktualisiert werden soll:
 Da die Kubuntu-Maschine Internet hat, werden die Artefakte direkt geholt. **Alle für Linux x86_64.**
 
 ```bash
-mkdir -p ~/jarchi-build && cd ~/jarchi-build
+mkdir -p jarchi-build && cd jarchi-build
 
 # 1) JDK 21 (aus den Paketquellen)
 sudo apt update && sudo apt install -y openjdk-21-jdk
