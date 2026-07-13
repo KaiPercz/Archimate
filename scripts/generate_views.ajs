@@ -79,27 +79,28 @@ apps.forEach(function (app) {
 });
 console.log("Fertig: " + made + " App-Views erzeugt.");
 
-// --- Kommunikations-Views aus Firewall-Flows (Quell-Node -> App-Segment) ---
+// --- Kommunikations-Views direkt aus den Flow-Beziehungen IM MODELL ---
+// (robust: Knoten UND Verbindungen kommen aus echten Modell-Objekten -> keine JSON/Modell-Diskrepanz)
 $("view").filter(function (v) { return v.name.indexOf("Kommunikation: ") === 0; }).each(function (v) { v.delete(); });
-var flowsByApp = {};
-data.relations.forEach(function (r) {
-    if (r.type === "Flow") { (flowsByApp[r.target] = flowsByApp[r.target] || []).push(r); }
+var byTarget = {};                     // Ziel-App-Concept-id -> [Flow-Beziehungen]
+$("flow-relationship").each(function (rel) {
+    var t = rel.target; if (!t) return;
+    (byTarget[t.id] = byTarget[t.id] || []).push(rel);
 });
-var madeF = 0;
-Object.keys(flowsByApp).forEach(function (appid) {
-    var app = elById[appid], appC = byExt(appid);
-    if (!app || !appC) return;
-    var view = model.createArchimateView("Kommunikation: " + app.name);
-    var av = view.add(appC, 320, 20, 220, 60);
-    var y = 120;
-    flowsByApp[appid].forEach(function (fr) {
-        var nc = byExt(fr.source);
-        if (!nc) return;
-        var nv = view.add(nc, 20, y, 260, 55);
-        var fc = byExt(fr.id);
-        if (fc) view.add(fc, nv, av);
+var madeF = 0, tids = Object.keys(byTarget);
+if (!tids.length) { console.log("Keine Flow-Beziehungen im Modell - erst sync_archi.ajs (mit Flow) ausfuehren."); }
+tids.forEach(function (tid) {
+    var rels = byTarget[tid];
+    var appC = rels[0].target;
+    var view = model.createArchimateView("Kommunikation: " + appC.name);
+    var av = view.add(appC, 360, 20, 240, 60);
+    var y = 120, seen = {};
+    rels.forEach(function (rel) {
+        var s = rel.source; if (!s || seen[s.id]) return; seen[s.id] = true;
+        var sv = view.add(s, 20, y, 300, 55);
+        view.add(rel, sv, av);         // echte Beziehung -> Verbindungslinie wird gezeichnet
         y += 70;
     });
     madeF++;
 });
-console.log("Fertig: " + madeF + " Kommunikations-Views erzeugt.");
+console.log("Fertig: " + madeF + " Kommunikations-Views (aus Modell-Flows) erzeugt.");
