@@ -79,28 +79,48 @@ apps.forEach(function (app) {
 });
 console.log("Fertig: " + made + " App-Views erzeugt.");
 
-// --- Kommunikations-Views direkt aus den Flow-Beziehungen IM MODELL ---
+// --- Kommunikations-Views direkt aus den Beziehungen IM MODELL ---
 // (robust: Knoten UND Verbindungen kommen aus echten Modell-Objekten -> keine JSON/Modell-Diskrepanz)
+//   Quellen (links)  -Flow->  App (Mitte)  -Association->  exponierte Endpunkte Host:Port (rechts)
 $("view").filter(function (v) { return v.name.indexOf("Kommunikation: ") === 0; }).each(function (v) { v.delete(); });
-var byTarget = {};                     // Ziel-App-Concept-id -> [Flow-Beziehungen]
+var byTarget = {};                     // Ziel-App-Concept-id -> [Flow-Beziehungen]  (Quellen)
 $("flow-relationship").each(function (rel) {
     var t = rel.target; if (!t) return;
     (byTarget[t.id] = byTarget[t.id] || []).push(rel);
 });
-var madeF = 0, tids = Object.keys(byTarget);
-if (!tids.length) { console.log("Keine Flow-Beziehungen im Modell - erst sync_archi.ajs (mit Flow) ausfuehren."); }
+var epByApp = {};                      // App-Concept-id -> [Association-Beziehungen zu fwep-*]  (exponierte Endpunkte)
+$("association-relationship").each(function (rel) {
+    var t = rel.target; if (!t || !rel.source) return;
+    if (("" + t.prop("extid")).indexOf("fwep-") === 0)
+        (epByApp[rel.source.id] = epByApp[rel.source.id] || []).push(rel);
+});
+var appIds = {};
+Object.keys(byTarget).forEach(function (k) { appIds[k] = 1; });
+Object.keys(epByApp).forEach(function (k) { appIds[k] = 1; });
+var madeF = 0, tids = Object.keys(appIds);
+if (!tids.length) { console.log("Keine Flow-/Endpunkt-Beziehungen im Modell - erst sync_archi.ajs ausfuehren."); }
 tids.forEach(function (tid) {
-    var rels = byTarget[tid];
-    var appC = rels[0].target;
+    var flows = byTarget[tid] || [];
+    var eps   = epByApp[tid] || [];
+    var appC  = flows.length ? flows[0].target : eps[0].source;
     var view = model.createArchimateView("Kommunikation: " + appC.name);
     var av = view.add(appC, 360, 20, 240, 60);
+    // Quellen links -> App
     var y = 120, seen = {};
-    rels.forEach(function (rel) {
+    flows.forEach(function (rel) {
         var s = rel.source; if (!s || seen[s.id]) return; seen[s.id] = true;
         var sv = view.add(s, 20, y, 300, 55);
-        view.add(rel, sv, av);         // echte Beziehung -> Verbindungslinie wird gezeichnet
+        view.add(rel, sv, av);         // echte Flow-Beziehung -> Verbindungslinie
         y += 70;
+    });
+    // Exponierte Endpunkte (Host:Port) rechts <- App
+    var y2 = 120, seen2 = {};
+    eps.forEach(function (rel) {
+        var e = rel.target; if (!e || seen2[e.id]) return; seen2[e.id] = true;
+        var ev = view.add(e, 700, y2, 300, 45);
+        view.add(rel, av, ev);         // Association App -> Endpunkt
+        y2 += 55;
     });
     madeF++;
 });
-console.log("Fertig: " + madeF + " Kommunikations-Views (aus Modell-Flows) erzeugt.");
+console.log("Fertig: " + madeF + " Kommunikations-Views (Quellen + exponierte Endpunkte) erzeugt.");
