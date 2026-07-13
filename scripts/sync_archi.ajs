@@ -29,6 +29,7 @@ var TYPE = {   // Export-Typ -> jArchi-Typ
   BusinessService: "business-service",
   Association: "association-relationship", Assignment: "assignment-relationship",
   Realization: "realization-relationship", Serving: "serving-relationship",
+  Flow: "flow-relationship",
 };
 
 // --- JSON via Java-NIO einlesen ---

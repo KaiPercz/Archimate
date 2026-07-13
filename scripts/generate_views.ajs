@@ -78,3 +78,28 @@ apps.forEach(function (app) {
     made++;
 });
 console.log("Fertig: " + made + " App-Views erzeugt.");
+
+// --- Kommunikations-Views aus Firewall-Flows (Quell-Node -> App-Segment) ---
+$("view").filter(function (v) { return v.name.indexOf("Kommunikation: ") === 0; }).each(function (v) { v.delete(); });
+var flowsByApp = {};
+data.relations.forEach(function (r) {
+    if (r.type === "Flow") { (flowsByApp[r.target] = flowsByApp[r.target] || []).push(r); }
+});
+var madeF = 0;
+Object.keys(flowsByApp).forEach(function (appid) {
+    var app = elById[appid], appC = byExt(appid);
+    if (!app || !appC) return;
+    var view = model.createArchimateView("Kommunikation: " + app.name);
+    var av = view.add(appC, 320, 20, 220, 60);
+    var y = 120;
+    flowsByApp[appid].forEach(function (fr) {
+        var nc = byExt(fr.source);
+        if (!nc) return;
+        var nv = view.add(nc, 20, y, 260, 55);
+        var fc = byExt(fr.id);
+        if (fc) view.add(fc, nv, av);
+        y += 70;
+    });
+    madeF++;
+});
+console.log("Fertig: " + madeF + " Kommunikations-Views erzeugt.");
