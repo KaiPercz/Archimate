@@ -55,18 +55,32 @@ git -C archi-scripting-plugin checkout v1.12.0
    - `bin.includes` (welche Ordner/Dateien ins Bundle gehören: `META-INF/`, `plugin.xml`,
      `plugin.properties`, `img/`, `templates/`, `js/`, `lib/`, `help/`, …),
    - `Bundle-SymbolicName` und `Bundle-Version` (für den Jar-Namen).
-2. Kompiliere gegen Archi + die gebündelten Libs:
+2. Kompiliere gegen Archi + die gebündelten Libs — **und kopiere danach die Nicht-`.java`-
+   Ressourcen aus `src/` mit** (ohne diesen Schritt fehlen die NLS-`messages.properties`;
+   jArchi wirft dann „NLS missing message: …" und bricht mit einer Exception ab):
    ```bash
    ARCHI=~/jarchi-build/<entpacktes-archi-5.8.0>
    SRC=~/jarchi-build/archi-scripting-plugin/com.archimatetool.script
    mkdir -p ~/jarchi-build/work/classes
+   # a) kompilieren
    javac --release 21 \
      -cp "$ARCHI/plugins/*:$SRC/lib/*" \
      -d ~/jarchi-build/work/classes \
      $(find "$SRC/src" -name '*.java')
+   # b) *** WICHTIG *** alle Ressourcen (Nicht-.java) aus src/ ins Kompilat kopieren,
+   #    v.a. **/messages.properties (NLS). cp --parents erhaelt die Paketstruktur.
+   ( cd "$SRC/src" && find . -type f ! -name '*.java' -exec cp --parents {} ~/jarchi-build/work/classes/ \; )
    ```
-3. Assembliere das Bundle **exakt gemäß Schritt 1** (Nested-Code-Jar falls im ClassPath vorgesehen,
-   dann äußeres Bundle-Jar mit `lib/`, Ressourcen und `META-INF/MANIFEST.MF`).
+3. Assembliere das Bundle **exakt gemäß Schritt 1**:
+   ```bash
+   # Nested-Code-Jar (Name laut Bundle-ClassPath, z.B. com.archimatetool.script.jar) —
+   # enthaelt jetzt Klassen UND Ressourcen (.properties):
+   ( cd ~/jarchi-build/work/classes && jar cf ../com.archimatetool.script.jar . )
+   # PFLICHT-Kontrolle: die NLS-Ressourcen muessen enthalten sein (sonst Build ungueltig):
+   jar tf ~/jarchi-build/work/com.archimatetool.script.jar | grep -c messages.properties   # > 0 !
+   ```
+   Danach das äußere Bundle-Jar bauen: `com.archimatetool.script.jar` + `lib/` + `META-INF/` +
+   `plugin.xml` + `plugin.properties` + `img/`/`templates/`/`js/`/`help/` (laut `bin.includes`).
    Der `MANIFEST.MF` aus den Quellen wird unverändert übernommen.
 
 > Falls die manuelle Assemblierung am OSGi-Klassenpfad scheitert: **Fallback** = ein minimales
@@ -79,9 +93,12 @@ git -C archi-scripting-plugin checkout v1.12.0
 BUNDLE=<pfad-zum-gebauten-jar>
 unzip -l "$BUNDLE" | grep -E "MANIFEST.MF|plugin.xml|lib/|\.class|\.jar"
 unzip -p "$BUNDLE" META-INF/MANIFEST.MF | grep -E "Bundle-SymbolicName|Bundle-Version|Bundle-ClassPath"
+# NLS-Ressourcen im inneren Code-Jar (MUSS Treffer liefern, sonst 'NLS missing message'):
+unzip -p "$BUNDLE" com.archimatetool.script.jar | jar tf /dev/stdin 2>/dev/null | grep messages.properties \
+  || python3 -c "import zipfile,io,sys; z=zipfile.ZipFile('$BUNDLE'); n=zipfile.ZipFile(io.BytesIO(z.read('com.archimatetool.script.jar'))).namelist(); print([x for x in n if x.endswith('messages.properties')])"
 ```
-Erwartet: `Bundle-SymbolicName: com.archimatetool.script`, Version `1.12.0.*`, `lib/`-Jars und
-die Klassen vorhanden. Die **endgültige** Ladeprüfung erfolgt auf Windows mit `check_jarchi.ajs`
+Erwartet: `Bundle-SymbolicName: com.archimatetool.script`, Version `1.12.0.*`, `lib/`-Jars,
+die Klassen **und** mehrere `.../messages.properties` im Code-Jar. Die **endgültige** Ladeprüfung erfolgt auf Windows mit `check_jarchi.ajs`
 (siehe SETUP.md Teil G) — weise am Ende darauf hin.
 
 ### Artefakt ablegen & übertragen

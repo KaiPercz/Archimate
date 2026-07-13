@@ -1,0 +1,80 @@
+/*
+ * View-Generierung fuer die Kommunikationslandkarte (jArchi).
+ * NACH sync_archi.ajs ausfuehren (das Modell muss die Elemente/Beziehungen enthalten).
+ *
+ * Erzeugt je Application Component eine View "App: <Name>" mit:
+ *   Anwendung (oben)  <-Serving-  bedienende Nodes (Mitte)  <-Association-  deren Netze (unten)
+ * Idempotent: bestehende "App: *"-Views werden vorher entfernt.
+ *
+ * Datenquelle fuer die Struktur ist dasselbe archimate_model.json; die Archi-Objekte
+ * werden ueber die Property "extid" gefunden (die der Sync gesetzt hat).
+ */
+var System = Java.type("java.lang.System");
+var Files  = Java.type("java.nio.file.Files");
+var Paths  = Java.type("java.nio.file.Paths");
+var isWindows = System.getProperty("os.name").toLowerCase().indexOf("win") >= 0;
+var JSON_PATH = isWindows
+    ? "C:\\Users\\kgpercz\\Projekte\\vmware_inventory\\archimate_model.json"
+    : Paths.get(System.getProperty("user.home"), "Projekte", "vmware_inventory", "archimate_model.json").toString();
+
+console.show(); console.clear();
+var data = JSON.parse(new java.lang.String(Files.readAllBytes(Paths.get(JSON_PATH)), "UTF-8") + "");
+var elById = {};
+data.elements.forEach(function (e) { elById[e.id] = e; });
+
+// Archi-Objekt (Element ODER Beziehung) ueber extid finden
+function byExt(extid) {
+    return $("*").filter(function (o) { return o.prop("extid") === extid; }).first();
+}
+
+// Struktur aus den Beziehungen ableiten
+var servingByApp = {}, assocByNode = {};
+data.relations.forEach(function (r) {
+    if (r.type === "Serving")     { (servingByApp[r.target] = servingByApp[r.target] || []).push(r); }
+    if (r.type === "Association") { (assocByNode[r.source] = assocByNode[r.source] || []).push(r); }
+});
+
+// bestehende App-Views entfernen (Idempotenz)
+$("view").filter(function (v) { return v.name.indexOf("App: ") === 0; }).each(function (v) { v.delete(); });
+
+var apps = data.elements.filter(function (e) { return e.type === "ApplicationComponent"; });
+if (!apps.length) { console.log("Keine Application Components im Modell - erst sync_archi.ajs ausfuehren?"); }
+
+var made = 0;
+apps.forEach(function (app) {
+    var rels = servingByApp[app.id] || [];
+    if (!rels.length) return;
+    var appC = byExt(app.id);
+    if (!appC) return;
+    var view = model.createArchimateView("App: " + app.name);
+    var vis = {};
+    vis[app.id] = view.add(appC, 20, 20, 220, 60);
+
+    var x = 20, nets = {};
+    rels.forEach(function (sr) {
+        var nc = byExt(sr.source);
+        if (!nc) return;
+        vis[sr.source] = view.add(nc, x, 150, 170, 55);
+        var sc = byExt(sr.id);                       // Serving-Beziehung Node->App
+        if (sc) view.add(sc, vis[sr.source], vis[app.id]);
+        (assocByNode[sr.source] || []).forEach(function (ar) { nets[ar.target] = true; });
+        x += 190;
+    });
+
+    var nx = 20;
+    Object.keys(nets).forEach(function (netid) {
+        var netc = byExt(netid);
+        if (!netc) return;
+        vis[netid] = view.add(netc, nx, 280, 170, 50);
+        nx += 190;
+    });
+    // Association-Beziehungen Node->Netz einzeichnen
+    rels.forEach(function (sr) {
+        (assocByNode[sr.source] || []).forEach(function (ar) {
+            var ac = byExt(ar.id);
+            if (ac && vis[sr.source] && vis[ar.target]) view.add(ac, vis[sr.source], vis[ar.target]);
+        });
+    });
+    made++;
+});
+console.log("Fertig: " + made + " App-Views erzeugt.");
